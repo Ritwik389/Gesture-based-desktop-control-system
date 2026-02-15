@@ -116,15 +116,15 @@ curl -X POST "http://127.0.0.1:8000/api/train"
 * **Gestures detected but nothing happens?**
     * Check the **Mac Permissions** section above. You likely need to re-toggle "Accessibility" for your Terminal.
 
-3. Frontend Installation (The Dashboard)
+## Frontend Installation (The Dashboard)
 
-Open a new terminal tab, navigate to the frontend folder, and run:
+* **Open a new terminal tab, navigate to the frontend folder, and run:**
 
-Bash
+// Bash
 # 1. Install React dependencies
-npm install
+ * npm install
 
 # 2. Start the development server
-npm run dev
+ *npm run dev
 
-after this just click the link that appears something like localhost://...
+**after this just click the link that appears something like localhost://...**
