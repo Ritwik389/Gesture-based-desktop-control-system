@@ -27,39 +27,33 @@ class ServerState:
         self.recording_count = 0 
         self.training_data = []    
         self.training_labels = [] 
-        self.is_control_active = False # Integrated directly into state
+        self.is_control_active = False 
+        self.active_mappings = {}
 
 state = ServerState()
 tracker = HandTracker()
 model = GestureModel()
 
-# --- PERSISTENCE LOGIC ---
-MODEL_PATH = "gesture_model.pkl"
-DATA_PATH = "training_data.json"
 
-def save_system():
-    # Save the ML model
+MODEL_PATH = "gesture_model.pkl"
+
+def save_model():
     with open(MODEL_PATH, 'wb') as f:
         pickle.dump(model, f)
-    # Save the raw data for future retraining
-    with open(DATA_PATH, 'w') as f:
-        json.dump({"data": state.training_data, "labels": state.training_labels}, f)
+    print(">>> Model saved successfully.")
 
-def load_system():
+def load_model():
+    global model
     if os.path.exists(MODEL_PATH):
-        global model
-        with open(MODEL_PATH, 'rb') as f:
-            model = pickle.load(f)
-        print(">>> Model loaded from disk.")
-    if os.path.exists(DATA_PATH):
-        with open(DATA_PATH, 'r') as f:
-            content = json.load(f)
-            state.training_data = content["data"]
-            state.training_labels = content["labels"]
-        print(">>> Training data loaded.")
+        try:
+            with open(MODEL_PATH, 'rb') as f:
+                model = pickle.load(f)
+            print(">>> Existing model loaded. Ready for use.")
+        except Exception as e:
+            print(f">>> Could not load model: {e}")
 
-# Load existing data on startup
-load_system()
+# Load model on startup
+load_model()
 
 @app.websocket("/ws/video")
 async def video_endpoint(websocket: WebSocket):
@@ -75,7 +69,7 @@ async def video_endpoint(websocket: WebSocket):
             detected_gesture = "None"
             confidence = 0.0
 
-            # RECORDING LOGIC
+            # 1. Handle Recording
             if state.mode == "RECORDING":
                 if landmarks:
                     state.training_data.append(landmarks)
@@ -84,16 +78,18 @@ async def video_endpoint(websocket: WebSocket):
                 if state.recording_count >= 50:
                     state.mode = "IDLE"
 
-            # PREDICTION LOGIC (Only runs if trained AND (predicting mode OR monitoring active))
+            # 2. Handle Prediction & OS Control
+            # Runs only if (Explicit Predicting Mode OR Start Monitoring is ON)
             elif (state.mode == "PREDICTING" or state.is_control_active) and model.is_trained:
                 if landmarks:
                     detected_gesture, confidence = model.predict(landmarks)
                     
-                    # TRIGGER OS ACTION
+                    # Only trigger hardware if Monitoring is specifically turned ON
                     if state.is_control_active and confidence > 0.85:
-                        controller.execute_action(detected_gesture)
 
-            # Build UI Status
+                        controller.execute_action(detected_gesture, state.active_mappings)
+
+            # Sync UI status
             ui_status = "IDLE"
             if state.mode == "RECORDING": ui_status = "RECORDING"
             elif state.is_control_active: ui_status = "PREDICTING"
@@ -108,7 +104,7 @@ async def video_endpoint(websocket: WebSocket):
                 "confidence": float(confidence),
                 "progress": state.recording_count 
             })
-            await asyncio.sleep(0.01) # High performance
+            await asyncio.sleep(0.01)
             
     except WebSocketDisconnect:
         print("Client Disconnected")
@@ -118,10 +114,10 @@ async def video_endpoint(websocket: WebSocket):
 @app.post("/api/toggle_control")
 async def toggle_control(data: dict):
     state.is_control_active = data.get("active", False)
-    # If we stop monitoring, we force the mode back to IDLE
+    # Ensure mode resets when stopping
     if not state.is_control_active:
         state.mode = "IDLE"
-    print(f"System Control: {state.is_control_active}")
+    print(f"OS Monitoring: {'ENABLED' if state.is_control_active else 'DISABLED'}")
     return {"status": "success", "active": state.is_control_active}
 
 @app.post("/api/train")
@@ -131,8 +127,22 @@ async def train_model():
     
     state.mode = "TRAINING"
     msg = model.train(state.training_data, state.training_labels)
-    save_system() # Save after training
+    save_model() # Save model so it persists after restart
     state.mode = "IDLE"
     return {"success": True, "message": msg}
 
-# Keep your existing /api/record and /api/status endpoints...
+@app.post("/api/record")
+async def start_recording(data: dict):
+    state.target_label = data.get("label")
+    state.recording_count = 0
+    state.mode = "RECORDING"
+    return {"message": "Recording started"}
+
+@app.post("/api/sync_mappings")
+async def sync_mappings(data: dict):
+    # Data format: [{"gesture": "ROCK", "action": "VOLUME_UP"}, ...]
+    new_mappings = data.get("mappings", [])
+    # Convert list to a dictionary for fast lookup: {"ROCK": "VOLUME_UP"}
+    state.active_mappings = {m['gesture'].lower(): m['action'] for m in new_mappings}
+    print(f">>> Mappings Synced: {state.active_mappings}")
+    return {"status": "success"}
