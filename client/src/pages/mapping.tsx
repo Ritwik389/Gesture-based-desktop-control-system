@@ -1,22 +1,22 @@
 import { useState } from "react";
-import { useStore, GestureType, DroneAction } from "@/lib/mockStore";
+import { useStore, GestureType, DesktopAction } from "@/lib/mockStore";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Hand, Save, RotateCcw } from "lucide-react";
+import { Hand, Save, RotateCcw, Monitor, MousePointer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const ACTION_OPTIONS: { value: DroneAction; label: string }[] = [
-  { value: 'HOVER', label: 'Hover in Place' },
-  { value: 'TAKEOFF', label: 'Take Off' },
-  { value: 'LAND', label: 'Land Safely' },
-  { value: 'MOVE_UP', label: 'Ascend (Up)' },
-  { value: 'MOVE_DOWN', label: 'Descend (Down)' },
-  { value: 'ROTATE_LEFT', label: 'Yaw Left' },
-  { value: 'ROTATE_RIGHT', label: 'Yaw Right' },
-  { value: 'Flip', label: 'Stunt Flip' },
-  { value: 'NONE', label: 'No Action' },
+const ACTION_OPTIONS: { value: DesktopAction; label: string }[] = [
+  { value: 'PREVIOUS_SLIDE', label: 'Previous Slide' },
+  { value: 'NEXT_SLIDE', label: 'Next Slide' },
+  { value: 'VOLUME_UP', label: 'Volume Up' },
+  { value: 'VOLUME_DOWN', label: 'Volume Down' },
+  { value: 'ZOOM_IN', label: 'Zoom In' },
+  { value: 'ZOOM_OUT', label: 'Zoom Out' },
+  { value: 'MUTE', label: 'Mute System' },
+  { value: 'LOCK_SCREEN', label: 'Lock Computer' },
+  { value: 'NONE', label: 'Do Nothing' },
 ];
 
 export default function Mapping() {
@@ -25,7 +25,7 @@ export default function Mapping() {
   const [localMappings, setLocalMappings] = useState(mappings);
   const [hasChanges, setHasChanges] = useState(false);
 
-  const handleActionChange = (gesture: GestureType, action: DroneAction) => {
+  const handleActionChange = (gesture: GestureType, action: DesktopAction) => {
     setLocalMappings(prev => prev.map(m => m.gesture === gesture ? { ...m, action } : m));
     setHasChanges(true);
   };
@@ -33,114 +33,95 @@ export default function Mapping() {
   const handleSave = () => {
     localMappings.forEach(m => updateMapping(m.gesture, m.action));
     setHasChanges(false);
-    addLog('INFO', 'Gesture mappings updated by user');
-    toast({
-      title: "Configuration Saved",
-      description: "New gesture control mappings are now active.",
-    });
-  };
-
-  const handleReset = () => {
-    setLocalMappings(mappings);
-    setHasChanges(false);
-    toast({
-      title: "Changes Discarded",
-      description: "Reverted to last saved configuration.",
-      variant: "destructive"
-    });
+    addLog('SUCCESS', 'Action mappings synchronized with desktop agent');
+    toast({ title: "Configuration Updated", description: "Your gestures are now mapped to desktop actions." });
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Gesture Mapping</h1>
-        <p className="text-muted-foreground mt-1">Configure how hand gestures translate to drone commands.</p>
+    <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-700">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Action Mapping</h1>
+          <p className="text-muted-foreground mt-1">Configure your physical language to control OS shortcuts.</p>
+        </div>
+        {hasChanges && (
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => setLocalMappings(mappings)}>Discard</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSave}>Apply Changes</Button>
+          </div>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Configuration</CardTitle>
-              <CardDescription>Map detected hand poses to flight actions.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[100px]">Icon</TableHead>
-                    <TableHead>Gesture Name</TableHead>
-                    <TableHead>Mapped Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {localMappings.map((mapping) => (
-                    <TableRow key={mapping.gesture}>
-                      <TableCell>
-                        <div className="h-10 w-10 rounded-md bg-muted/50 flex items-center justify-center">
-                          <Hand className="h-5 w-5 text-muted-foreground" />
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3">
+          <Card className="border-none shadow-sm overflow-hidden bg-white">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">Visual Gesture</TableHead>
+                  <TableHead className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider">System Shortcut / Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {localMappings.map((mapping) => (
+                  <TableRow key={mapping.gesture} className="hover:bg-slate-50/50 transition-colors">
+                    <TableCell className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+                          <Hand size={18} />
                         </div>
-                      </TableCell>
-                      <TableCell className="font-medium font-mono">
-                        {mapping.gesture}
-                      </TableCell>
-                      <TableCell>
-                        <Select 
-                          value={mapping.action} 
-                          onValueChange={(val) => handleActionChange(mapping.gesture, val as DroneAction)}
-                        >
-                          <SelectTrigger className="w-[240px]">
-                            <SelectValue placeholder="Select action" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ACTION_OPTIONS.map(opt => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {hasChanges && (
-                <div className="mt-6 flex items-center justify-end gap-2 animate-in fade-in slide-in-from-bottom-2">
-                  <Button variant="ghost" onClick={handleReset}>
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Reset
-                  </Button>
-                  <Button onClick={handleSave}>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save Changes
-                  </Button>
-                </div>
-              )}
-            </CardContent>
+                        <span className="font-bold text-slate-900 font-mono tracking-tight">{mapping.gesture}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-6 py-4">
+                      <Select 
+                        value={mapping.action} 
+                        onValueChange={(val) => handleActionChange(mapping.gesture, val as DesktopAction)}
+                      >
+                        <SelectTrigger className="w-full md:w-[280px] bg-white border-slate-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ACTION_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value} className="py-2.5">
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Card>
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-primary">Quick Tips</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-2">
-              <p>• <strong>Safety First:</strong> Ensure 'Closed Fist' is always mapped to 'Land' or 'Hover' for emergency stops.</p>
-              <p>• <strong>Complexity:</strong> Simple gestures like 'Up/Down' are more reliable than complex finger signs.</p>
-              <p>• <strong>Latency:</strong> Changes take effect immediately after saving.</p>
-            </CardContent>
-          </Card>
-          
-          <div className="relative aspect-square rounded-xl overflow-hidden border bg-muted/20 flex items-center justify-center">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent" />
-            <div className="text-center space-y-2 p-4">
-              <Hand className="h-12 w-12 mx-auto text-primary opacity-50" />
-              <p className="text-sm font-medium">Gesture Preview</p>
-              <p className="text-xs text-muted-foreground">Perform a gesture to see it highlighted in the table (Requires Live Camera)</p>
+          <Card className="border-none shadow-sm bg-slate-900 text-white p-6">
+            <h4 className="font-bold mb-4 flex items-center gap-2">
+              <Monitor className="h-4 w-4 text-blue-400" />
+              OS Integration
+            </h4>
+            <p className="text-sm text-slate-400 leading-relaxed mb-6">
+              Mappings are pushed directly to the background service. Ensure "Accessibility Access" is granted in System Preferences.
+            </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                <span className="text-xs font-medium">Auto-Focus App</span>
+                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/10">
+                <span className="text-xs font-medium">Global Shortcuts</span>
+                <div className="h-2 w-2 rounded-full bg-emerald-500" />
+              </div>
             </div>
+          </Card>
+
+          <div className="aspect-square bg-blue-50 rounded-2xl border-2 border-dashed border-blue-100 flex flex-col items-center justify-center p-8 text-center">
+            <MousePointer className="h-10 w-10 text-blue-400 mb-4 animate-bounce" />
+            <h5 className="font-bold text-blue-900">Training Mode</h5>
+            <p className="text-xs text-blue-600/70 mt-2">Open the camera feed to record new custom gestures for specific apps.</p>
           </div>
         </div>
       </div>

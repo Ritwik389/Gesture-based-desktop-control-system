@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 // Types
-export type GestureType = 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' | 'OPEN_PALM' | 'CLOSED_FIST' | 'NONE';
-export type DroneAction = 'HOVER' | 'TAKEOFF' | 'LAND' | 'MOVE_UP' | 'MOVE_DOWN' | 'ROTATE_LEFT' | 'ROTATE_RIGHT' | 'Flip' | 'NONE';
+export type GestureType = 'SWIPE_LEFT' | 'SWIPE_RIGHT' | 'SWIPE_UP' | 'SWIPE_DOWN' | 'PINCH' | 'SPREAD' | 'ROTATE' | 'NONE';
+export type DesktopAction = 'PREVIOUS_SLIDE' | 'NEXT_SLIDE' | 'VOLUME_UP' | 'VOLUME_DOWN' | 'ZOOM_IN' | 'ZOOM_OUT' | 'MUTE' | 'LOCK_SCREEN' | 'NONE';
 export type SystemStatus = 'ONLINE' | 'OFFLINE' | 'ERROR' | 'CONNECTING';
 
 export interface GestureMapping {
   gesture: GestureType;
-  action: DroneAction;
+  action: DesktopAction;
 }
 
 export interface LogEntry {
@@ -19,41 +19,26 @@ export interface LogEntry {
 }
 
 interface AppState {
-  // Auth
   isAuthenticated: boolean;
   user: { name: string; email: string } | null;
   login: (email: string) => void;
   logout: () => void;
 
-  // Real-time Data (Simulated)
   lastGesture: GestureType;
   confidence: number;
-  droneStatus: 'IDLE' | 'FLYING' | 'RETURNING' | 'LANDED' | 'EMERGENCY';
-  batteryLevel: number;
-  wifiSignal: number;
+  activeApp: string;
   
-  // Settings
   mappings: GestureMapping[];
-  updateMapping: (gesture: GestureType, action: DroneAction) => void;
+  updateMapping: (gesture: GestureType, action: DesktopAction) => void;
 
-  // ML Training
-  isTraining: boolean;
-  trainingProgress: number;
-  lastTrained: string | null;
-  startTraining: () => void;
-
-  // System
   wsStatus: SystemStatus;
   mlStatus: SystemStatus;
   backendStatus: SystemStatus;
   
-  // Logs
   logs: LogEntry[];
   addLog: (type: LogEntry['type'], message: string) => void;
 
-  // Actions
   setGesture: (gesture: GestureType, confidence: number) => void;
-  toggleDroneStatus: () => void;
 }
 
 export const useStore = create<AppState>()(
@@ -61,22 +46,20 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       isAuthenticated: false,
       user: null,
-      login: (email) => set({ isAuthenticated: true, user: { name: 'Admin User', email } }),
+      login: (email) => set({ isAuthenticated: true, user: { name: 'Power User', email } }),
       logout: () => set({ isAuthenticated: false, user: null }),
 
       lastGesture: 'NONE',
       confidence: 0,
-      droneStatus: 'LANDED',
-      batteryLevel: 85,
-      wifiSignal: 92,
+      activeApp: 'Presentation Pro',
 
       mappings: [
-        { gesture: 'UP', action: 'MOVE_UP' },
-        { gesture: 'DOWN', action: 'MOVE_DOWN' },
-        { gesture: 'LEFT', action: 'ROTATE_LEFT' },
-        { gesture: 'RIGHT', action: 'ROTATE_RIGHT' },
-        { gesture: 'OPEN_PALM', action: 'HOVER' },
-        { gesture: 'CLOSED_FIST', action: 'LAND' },
+        { gesture: 'SWIPE_LEFT', action: 'PREVIOUS_SLIDE' },
+        { gesture: 'SWIPE_RIGHT', action: 'NEXT_SLIDE' },
+        { gesture: 'SWIPE_UP', action: 'VOLUME_UP' },
+        { gesture: 'SWIPE_DOWN', action: 'VOLUME_DOWN' },
+        { gesture: 'PINCH', action: 'ZOOM_OUT' },
+        { gesture: 'SPREAD', action: 'ZOOM_IN' },
       ],
 
       updateMapping: (gesture, action) => 
@@ -84,30 +67,12 @@ export const useStore = create<AppState>()(
           mappings: state.mappings.map(m => m.gesture === gesture ? { ...m, action } : m)
         })),
 
-      isTraining: false,
-      trainingProgress: 0,
-      lastTrained: new Date().toISOString(),
-      
-      startTraining: () => {
-        set({ isTraining: true, trainingProgress: 0 });
-        const interval = setInterval(() => {
-          const { trainingProgress } = get();
-          if (trainingProgress >= 100) {
-            clearInterval(interval);
-            set({ isTraining: false, trainingProgress: 0, lastTrained: new Date().toISOString() });
-            get().addLog('SUCCESS', 'Model retraining completed successfully');
-          } else {
-            set({ trainingProgress: trainingProgress + 10 });
-          }
-        }, 500);
-      },
-
       wsStatus: 'ONLINE',
       mlStatus: 'ONLINE',
       backendStatus: 'ONLINE',
 
       logs: [
-        { id: '1', timestamp: new Date().toISOString(), type: 'INFO', message: 'System initialized' },
+        { id: '1', timestamp: new Date().toISOString(), type: 'INFO', message: 'Gesture Engine Started' },
       ],
 
       addLog: (type, message) => set((state) => ({
@@ -115,19 +80,9 @@ export const useStore = create<AppState>()(
       })),
 
       setGesture: (gesture, confidence) => set({ lastGesture: gesture, confidence }),
-      
-      toggleDroneStatus: () => set((state) => ({
-        droneStatus: state.droneStatus === 'LANDED' ? 'FLYING' : 'LANDED'
-      }))
     }),
     {
-      name: 'aerogesture-storage',
-      partialize: (state) => ({ 
-        isAuthenticated: state.isAuthenticated,
-        user: state.user,
-        mappings: state.mappings,
-        lastTrained: state.lastTrained
-      }),
+      name: 'gesture-desktop-storage',
     }
   )
 );
