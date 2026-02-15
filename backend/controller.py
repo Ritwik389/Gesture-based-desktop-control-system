@@ -6,35 +6,32 @@ pyautogui.FAILSAFE = True
 
 # Global variable to prevent "spamming" (pressing key 50 times a second)
 last_action_time = 0
-cooldown = 1.0  # Seconds to wait between actions
+cooldown = 2.0  # Wait 2 seconds between actions so it doesn't stutter
 
 def execute_action(gesture_name):
     global last_action_time
+    if gesture_name=="nothing":
+        return
     
-    # 1. Check Cooldown (don't spam volume up!)
+    # Check if we are still in "cooldown"
     if time.time() - last_action_time < cooldown:
         return
 
-    # 2. Map Gestures to Mac Shortcuts
-    if gesture_name == "fist":
-        # Mute Volume (Mac specific key)
+    # --- THE MAPPINGS ---
+    if gesture_name == "rock":
+        # ACTION: Mute/Unmute Volume
+        print(">>> ACTION TRIGGERED: Mute Volume")
         pyautogui.press('volumemute')
-        print(">>> ACTION: Mute")
+        last_action_time = time.time()
         
-    elif gesture_name == "palm":
-        # Play/Pause Media
+    elif gesture_name == "paper":
+        # ACTION: Play/Pause YouTube or Spotify
+        print(">>> ACTION TRIGGERED: Play/Pause")
         pyautogui.press('playpause')
-        print(">>> ACTION: Play/Pause")
-        
+        last_action_time = time.time()
+
     elif gesture_name == "thumbs_up":
-        # Minimize current window (Command + M)
-        pyautogui.hotkey('command', 'm')
-        print(">>> ACTION: Minimize Window")
-
-    elif gesture_name == "ok_sign":
-        # Switch Browser Tab (Control + Tab)
-        pyautogui.hotkey('ctrl', 'tab')
-        print(">>> ACTION: Next Tab")
-
-    # 3. Reset Cooldown
-    last_action_time = time.time()
+        # ACTION: Switch Windows (Command + Tab)
+        print(">>> ACTION TRIGGERED: Switch Window")
+        pyautogui.hotkey('command', 'tab')
+        last_action_time = time.time()

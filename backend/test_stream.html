@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <h2>Backend Video Stream Test</h2>
+    <p>Status: <span id="status">Connecting...</span></p>
+    <img id="videoFeed" style="width: 640px; height: 480px; border: 2px solid black;"/>
+    <pre id="jsonOutput"></pre>
+
+    <script>
+        const ws = new WebSocket("ws://127.0.0.1:8000/ws/video");
+        const img = document.getElementById("videoFeed");
+        const status = document.getElementById("status");
+        const jsonOut = document.getElementById("jsonOutput");
+
+        ws.onopen = () => status.innerText = "Connected! (Backend is Healthy)";
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            // 1. Update Image
+            img.src = "data:image/jpeg;base64," + data.image;
+            // 2. Show the raw JSON data
+            jsonOut.innerText = JSON.stringify(data, null, 2);
+        };
+        ws.onerror = () => status.innerText = "Error connecting to backend.";
+    </script>
+</body>
+</html>
