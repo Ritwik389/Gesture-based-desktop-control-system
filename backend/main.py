@@ -111,3 +111,13 @@ async def get_status():
         "samples": len(state.training_data),
         "is_trained": model.is_trained
     }
+
+# Add this to your main.py
+is_control_active = False
+
+@app.post("/api/toggle_control")
+async def toggle_control(data: dict):
+    global is_control_active
+    is_control_active = data.get("active", False)
+    print(f"System Control: {'ENABLED' if is_control_active else 'DISABLED'}")
+    return {"status": "success", "active": is_control_active}
