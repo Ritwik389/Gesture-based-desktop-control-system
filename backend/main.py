@@ -123,6 +123,35 @@ load_model()
 load_mappings()
 load_runtime_config()
 
+def apply_one_to_one_mappings(mapping_items):
+    # Enforce: one action -> one gesture.
+    # If duplicates exist for an action, the last provided row wins.
+    action_to_gesture = {}
+    for item in mapping_items:
+        gesture = str(item.get("gesture", "")).strip().lower()
+        action = str(item.get("action", "")).strip().upper()
+        if not gesture or not action or action == "NONE":
+            continue
+        action_to_gesture[action] = gesture
+    state.active_mappings = {gesture: action for action, gesture in action_to_gesture.items()}
+    save_mappings()
+    return state.active_mappings
+
+def bind_action_to_gesture(action: str, gesture: str):
+    action_key = str(action).strip().upper()
+    gesture_key = str(gesture).strip().lower()
+    if not action_key or not gesture_key:
+        return state.active_mappings
+    if action_key == "NONE":
+        return state.active_mappings
+
+    # Remove any existing gesture that points to this action, then bind new one.
+    filtered = {g: a for g, a in state.active_mappings.items() if a != action_key}
+    filtered[gesture_key] = action_key
+    state.active_mappings = filtered
+    save_mappings()
+    return state.active_mappings
+
 def _effective_threshold(gesture_name, confidence):
     gesture_key = gesture_name.lower()
     base = float(state.gesture_thresholds.get(gesture_key, state.default_threshold))
@@ -270,13 +299,16 @@ async def start_recording(data: dict):
 async def sync_mappings(data: dict):
     # Data format: [{"gesture": "ROCK", "action": "VOLUME_UP"}, ...]
     new_mappings = data.get("mappings", [])
-    # Convert list to a dictionary for fast lookup: {"ROCK": "VOLUME_UP"}
-    state.active_mappings = {
-        m["gesture"].lower(): m["action"].upper() for m in new_mappings
-    }
-    save_mappings()
+    apply_one_to_one_mappings(new_mappings)
     print(f">>> Mappings Synced: {state.active_mappings}")
     return {"status": "success"}
+
+@app.post("/api/bind_action_gesture")
+async def bind_action_gesture(data: dict):
+    action = data.get("action", "")
+    gesture = data.get("gesture", "")
+    updated = bind_action_to_gesture(action, gesture)
+    return {"status": "success", "mappings": updated}
 
 @app.get("/api/model_status")
 async def model_status():
