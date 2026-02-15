@@ -1,0 +1,9 @@
+fastapi
+mediapipe==0.10.9
+numpy
+opencv-python
+protobuf<4.25.0
+pyautogui
+scikit-learn
+uvicorn
+websockets

@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { useStore, GestureType, DesktopAction } from "@/lib/gestureStore";
+import { useStore, GestureType, DesktopAction, type Mapping as GestureMapping } from "@/lib/gestureStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Hand, Monitor, MousePointer, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -21,15 +22,15 @@ const ACTION_OPTIONS: { value: DesktopAction; label: string }[] = [
   { value: 'NONE', label: 'Do Nothing' },
 ];
 
-const GESTURE_OPTIONS: GestureType[] = ['ROCK', 'PAPER', 'NOTHING', 'SWIPE_LEFT', 'SWIPE_RIGHT'];
+const GESTURE_SUGGESTIONS: GestureType[] = ['ROCK', 'PAPER', 'NOTHING', 'SWIPE_LEFT', 'SWIPE_RIGHT', 'LEFT_SPLIT', 'RIGHT_SPLIT'];
 
 export default function Mapping() {
-  const { mappings, updateMapping, addMapping, removeMapping } = useStore();
+  const { mappings, updateMapping, addMapping, removeMapping, setMappings } = useStore();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   // Local state to track unsaved changes in the UI
-  const [localMappings, setLocalMappings] = useState(mappings);
+  const [localMappings, setLocalMappings] = useState<GestureMapping[]>(mappings);
   const [hasChanges, setHasChanges] = useState(false);
 
   // Keep local state in sync if store changes (e.g., adding a new row)
@@ -37,15 +38,50 @@ export default function Mapping() {
     setLocalMappings(mappings);
   }, [mappings]);
 
+  useEffect(() => {
+    const loadPersistedMappings = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/mappings");
+        if (!response.ok) return;
+        const payload = await response.json();
+        const persisted = payload.mappings as Record<string, string>;
+        if (!persisted || Object.keys(persisted).length === 0) return;
+        const mappedRows = Object.entries(persisted).map(([gesture, action], idx) => ({
+          id: `${idx + 1}`,
+          gesture: gesture.toUpperCase() as GestureType,
+          action: action.toUpperCase() as DesktopAction,
+        }));
+        setMappings(mappedRows);
+      } catch {
+        // Keep local defaults when backend mappings are unavailable.
+      }
+    };
+    loadPersistedMappings();
+  }, [setMappings]);
+
   const handleUpdate = (id: string, field: 'gesture' | 'action', value: string) => {
-    setLocalMappings(prev => prev.map(m => m.id === id ? { ...m, [field]: value } : m));
+    const nextValue = field === "gesture" ? value.toUpperCase().trim() : value;
+    setLocalMappings(prev => prev.map(m => m.id === id ? { ...m, [field]: nextValue } : m));
     setHasChanges(true);
   };
 
   const handleSave = async () => {
+    const sanitizedMappings = localMappings
+      .map((m) => ({ ...m, gesture: m.gesture.toUpperCase().trim() }))
+      .filter((m) => m.gesture.length > 0);
+
+    if (sanitizedMappings.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No valid gestures",
+        description: "Add at least one non-empty gesture label before saving.",
+      });
+      return;
+    }
+
     // 1. Update the Zustand store first
-    localMappings.forEach(m => {
-      updateMapping(m.id, 'gesture', m.gesture);
+    sanitizedMappings.forEach(m => {
+      updateMapping(m.id, 'gesture', m.gesture.toUpperCase().trim());
       updateMapping(m.id, 'action', m.action);
     });
 
@@ -54,7 +90,7 @@ export default function Mapping() {
       const response = await fetch("http://127.0.0.1:8000/api/sync_mappings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mappings: localMappings }),
+        body: JSON.stringify({ mappings: sanitizedMappings }),
       });
 
       if (response.ok) {
@@ -109,19 +145,13 @@ export default function Mapping() {
                         <div className="h-10 w-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
                           <Hand size={18} />
                         </div>
-                        <Select 
-                          value={mapping.gesture} 
-                          onValueChange={(val) => handleUpdate(mapping.id, 'gesture', val)}
-                        >
-                          <SelectTrigger className="w-full md:w-[180px] font-bold font-mono border-none shadow-none focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GESTURE_OPTIONS.map(g => (
-                              <SelectItem key={g} value={g}>{g}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Input
+                          value={mapping.gesture}
+                          onChange={(e) => handleUpdate(mapping.id, "gesture", e.target.value)}
+                          list="gesture-suggestions"
+                          className="w-full md:w-[220px] font-bold font-mono uppercase"
+                          placeholder="e.g. LEFT_SPLIT"
+                        />
                       </div>
                     </TableCell>
                     <TableCell className="px-6 py-4">
@@ -157,6 +187,11 @@ export default function Mapping() {
             >
               <Plus size={16} /> Add New Gesture Mapping
             </Button>
+            <datalist id="gesture-suggestions">
+              {GESTURE_SUGGESTIONS.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
           </Card>
         </div>
 

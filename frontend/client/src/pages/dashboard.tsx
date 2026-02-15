@@ -23,14 +23,10 @@ export default function Dashboard() {
   );
 
   useEffect(() => {
-    store.connect();
-  }, []);
-
-  useEffect(() => {
     setChartData(prev => {
       const newData = [...prev.slice(1), { 
         time: prev[prev.length - 1].time + 1, 
-        confidence: store.confidence 
+        confidence: store.confidence * 100
       }];
       return newData;
     });
@@ -109,7 +105,7 @@ export default function Dashboard() {
             </div>
             <h3 className="text-3xl font-black tracking-tight uppercase">{store.gesture || "NONE"}</h3>
             <Badge className="mt-4 bg-white text-blue-600 hover:bg-white/90 border-none font-bold">
-              {Math.round(store.confidence)}% MATCH
+              {Math.round(store.confidence * 100)}% MATCH
             </Badge>
           </CardContent>
         </Card>
@@ -119,7 +115,7 @@ export default function Dashboard() {
         {[
           { label: "Active Window", value: "Desktop Agent", icon: AppWindow, color: "text-orange-600", bg: "bg-orange-50" },
           { label: "Control Mode", value: store.isMonitoring ? "ACTIVE" : "STANDBY", icon: MousePointer2, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Mapped Action", value: store.mappings.find(m => m.gesture === store.gesture)?.action || "IDLE", icon: Zap, color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Mapped Action", value: store.mappings.find(m => m.gesture === store.gesture.toUpperCase())?.action || "IDLE", icon: Zap, color: "text-amber-600", bg: "bg-amber-50" },
           { label: "Neural Load", value: "4.2%", icon: Activity, color: "text-emerald-600", bg: "bg-emerald-50" }
         ].map((stat, i) => (
           <Card key={i} className="border-none shadow-sm bg-white hover:scale-[1.02] transition-transform">

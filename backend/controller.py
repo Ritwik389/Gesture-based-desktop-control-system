@@ -1,4 +1,5 @@
 import pyautogui
+import sys
 import time
 
 pyautogui.FAILSAFE = True 
@@ -13,26 +14,60 @@ ACTION_MAP = {
     'NEXT_SLIDE': 'right',
     'PREVIOUS_SLIDE': 'left',
     'PLAY_PAUSE': 'playpause',
-    'LOCK_SCREEN': 'none' # Handled differently by OS
 }
+
+def _press_zoom_in():
+    if sys.platform == "darwin":
+        pyautogui.hotkey("command", "=")
+    else:
+        pyautogui.hotkey("ctrl", "=")
+
+def _press_zoom_out():
+    if sys.platform == "darwin":
+        pyautogui.hotkey("command", "-")
+    else:
+        pyautogui.hotkey("ctrl", "-")
+
+def _lock_screen():
+    if sys.platform == "darwin":
+        pyautogui.hotkey("ctrl", "command", "q")
+    elif sys.platform.startswith("win"):
+        pyautogui.hotkey("win", "l")
+    else:
+        pyautogui.hotkey("ctrl", "alt", "l")
+
+def _perform_action(action_key):
+    pyautogui_key = ACTION_MAP.get(action_key)
+    if pyautogui_key:
+        pyautogui.press(pyautogui_key)
+        return True
+
+    if action_key == "ZOOM_IN":
+        _press_zoom_in()
+        return True
+
+    if action_key == "ZOOM_OUT":
+        _press_zoom_out()
+        return True
+
+    if action_key == "LOCK_SCREEN":
+        _lock_screen()
+        return True
+
+    return False
 
 def execute_action(gesture_name, current_mappings):
     global last_action_time
-    gesture_name = gesture_name.lower()
+    gesture_key = gesture_name.strip().lower()
     
-    if gesture_name == "none" or (time.time() - last_action_time < cooldown):
+    if gesture_key == "none" or (time.time() - last_action_time < cooldown):
         return
 
-    # 1. Check if this gesture has a mapping assigned
-    mapped_action_key = current_mappings.get(gesture_name)
-    
-    if not mapped_action_key or mapped_action_key == 'NONE':
+    mapped_action_key = current_mappings.get(gesture_key)
+    if not mapped_action_key or mapped_action_key.upper() == "NONE":
         return
 
-    # 2. Translate UI string (e.g., 'VOLUME_UP') to PyAutoGUI key (e.g., 'volumeup')
-    pyautogui_key = ACTION_MAP.get(mapped_action_key)
-
-    if pyautogui_key:
-        print(f">>> EXECUTING: {gesture_name} -> {mapped_action_key}")
-        pyautogui.press(pyautogui_key)
+    action_key = mapped_action_key.upper()
+    if _perform_action(action_key):
+        print(f">>> EXECUTING: {gesture_key} -> {action_key}")
         last_action_time = time.time()

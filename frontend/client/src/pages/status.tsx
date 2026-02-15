@@ -1,6 +1,8 @@
-import { useStore, SystemStatus } from "@/lib/gestureStore";
+import { useEffect, useState } from "react";
+import { useStore, ModelStatusPayload } from "@/lib/gestureStore";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { 
   Server, 
   Cpu, 
@@ -12,12 +14,28 @@ import {
 
 export default function Status() {
   const store = useStore();
+  const [modelStatus, setModelStatus] = useState<ModelStatusPayload | null>(null);
 
   const services = [
     { name: "ML Engine", status: store.mlStatus, icon: Cpu, load: "14%", temp: "42°C" },
     { name: "Desktop Agent", status: store.backendStatus, icon: Server, load: "2%", temp: "-" },
     { name: "Web Gateway", status: store.wsStatus, icon: Globe, load: "0.1%", temp: "-" },
   ];
+
+  const refreshModelStatus = async () => {
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/model_status");
+      if (!response.ok) return;
+      const payload = await response.json();
+      setModelStatus(payload);
+    } catch {
+      // keep previous model status
+    }
+  };
+
+  useEffect(() => {
+    void refreshModelStatus();
+  }, []);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -64,6 +82,47 @@ export default function Status() {
           </Card>
         ))}
       </div>
+
+      <Card className="border-none shadow-sm bg-white">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Model Diagnostics</CardTitle>
+          <Button variant="outline" onClick={refreshModelStatus}>Refresh</Button>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+            <p><span className="font-semibold">Trained:</span> {modelStatus?.is_trained ? "Yes" : "No"}</p>
+            <p><span className="font-semibold">Samples:</span> {modelStatus?.training_samples ?? 0}</p>
+            <p>
+              <span className="font-semibold">Validation Accuracy:</span>{" "}
+              {modelStatus?.validation_accuracy == null
+                ? "N/A"
+                : `${Math.round(modelStatus.validation_accuracy * 100)}%`}
+            </p>
+            <p>
+              <span className="font-semibold">Classes:</span>{" "}
+              {(modelStatus?.classes ?? []).join(", ") || "N/A"}
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+            <p>
+              <span className="font-semibold">Default Threshold:</span>{" "}
+              {modelStatus?.default_threshold?.toFixed(2) ?? "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Required Frame Streak:</span>{" "}
+              {modelStatus?.required_consecutive_frames ?? "N/A"}
+            </p>
+            <p>
+              <span className="font-semibold">Monitoring:</span>{" "}
+              {modelStatus?.monitoring_active ? "Active" : "Idle"}
+            </p>
+            <p>
+              <span className="font-semibold">Saved Mappings:</span>{" "}
+              {modelStatus ? Object.keys(modelStatus.mappings || {}).length : 0}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card className="border-none shadow-sm bg-white">
         <CardHeader>
