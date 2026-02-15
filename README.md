@@ -115,3 +115,16 @@ curl -X POST "http://127.0.0.1:8000/api/train"
     * Make sure `test_stream.html` is open in a browser. The camera only turns on when someone is watching.
 * **Gestures detected but nothing happens?**
     * Check the **Mac Permissions** section above. You likely need to re-toggle "Accessibility" for your Terminal.
+
+3. Frontend Installation (The Dashboard)
+
+Open a new terminal tab, navigate to the frontend folder, and run:
+
+Bash
+# 1. Install React dependencies
+npm install
+
+# 2. Start the development server
+npm run dev
+
+after this just click the link that appears something like localhost://...
