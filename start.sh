@@ -1,11 +1,8 @@
-#!/bin/bash
-# 1. FORCE the terminal to go to the folder where this script is saved
 cd "$(dirname "$0")"
 
 echo "🚀 Launching GestureOS..."
 
-# 2. Activate the Virtual Environment (Fixes 'No module named uvicorn')
-# We check the root folder first (as seen in your screenshot)
+
 if [ -f "venv/bin/activate" ]; then
     source venv/bin/activate
 elif [ -f "backend/venv/bin/activate" ]; then
@@ -15,10 +12,9 @@ else
     exit 1
 fi
 
-# 3. Start Backend
 if [ -d "backend" ]; then
     cd backend
-    # Running uvicorn in the background
+
     python -m uvicorn main:app --reload &
     BACKEND_PID=$!
     cd ..
@@ -27,7 +23,7 @@ else
     exit 1
 fi
 
-# 4. Start Frontend
+
 if [ -d "frontend" ]; then
     cd frontend
     npm run dev -- --open &
@@ -39,7 +35,7 @@ else
     exit 1
 fi
 
-# 5. Cleanup Function (Runs when you press Ctrl+C)
+
 cleanup() {
     echo -e "\n🛑 Stopping GestureOS..."
     kill $BACKEND_PID 2>/dev/null
