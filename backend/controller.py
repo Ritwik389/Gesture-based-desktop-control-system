@@ -12,6 +12,7 @@ def execute_action(gesture_name):
     global last_action_time
     if gesture_name=="nothing":
         return
+        
     
     # Check if we are still in "cooldown"
     if time.time() - last_action_time < cooldown:
