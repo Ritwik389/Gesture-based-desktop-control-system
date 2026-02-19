@@ -53,12 +53,14 @@ class HandTracker:
 
 class GestureModel:
     def __init__(self):
-        self.model = KNeighborsClassifier(n_neighbors=3)
+        self.model = KNeighborsClassifier(n_neighbors=3, weights="distance")
         self.is_trained = False
         self.classes = []
         self.validation_accuracy = None
         self.training_samples = 0
         self.last_trained_at = None
+        self.last_neighbor_distance = None
+        self.dataset_signature = None
 
     def train(self, X_data, y_labels):
         if len(X_data) < 1:
@@ -72,10 +74,14 @@ class GestureModel:
             X_train, X_val, y_train, y_val = train_test_split(
                 X_data, y_labels, test_size=0.2, random_state=42, stratify=y_labels
             )
+            k = max(1, min(5, len(X_train)))
+            self.model = KNeighborsClassifier(n_neighbors=k, weights="distance")
             self.model.fit(X_train, y_train)
             y_pred = self.model.predict(X_val)
             self.validation_accuracy = float(accuracy_score(y_val, y_pred))
         else:
+            k = max(1, min(5, len(X_data)))
+            self.model = KNeighborsClassifier(n_neighbors=k, weights="distance")
             self.model.fit(X_data, y_labels)
             self.validation_accuracy = None
 
@@ -97,6 +103,7 @@ class GestureModel:
                         "validation_accuracy": self.validation_accuracy,
                         "training_samples": self.training_samples,
                         "last_trained_at": self.last_trained_at,
+                        "dataset_signature": self.dataset_signature,
                     },
                 },
                 f,
@@ -118,6 +125,7 @@ class GestureModel:
                 self.validation_accuracy = metadata.get("validation_accuracy")
                 self.training_samples = int(metadata.get("training_samples", 0))
                 self.last_trained_at = metadata.get("last_trained_at")
+                self.dataset_signature = metadata.get("dataset_signature")
                 return True
 
         # Backward compatibility:
@@ -130,6 +138,7 @@ class GestureModel:
             self.validation_accuracy = None
             self.training_samples = 0
             self.last_trained_at = None
+            self.dataset_signature = None
             return True
 
         if hasattr(loaded, "model") and hasattr(loaded.model, "predict_proba"):
@@ -139,6 +148,7 @@ class GestureModel:
             self.validation_accuracy = getattr(loaded, "validation_accuracy", None)
             self.training_samples = int(getattr(loaded, "training_samples", 0))
             self.last_trained_at = getattr(loaded, "last_trained_at", None)
+            self.dataset_signature = getattr(loaded, "dataset_signature", None)
             return self.is_trained
 
         return False
@@ -146,12 +156,20 @@ class GestureModel:
     def predict(self, landmarks):
         if not self.is_trained:
             return "Uncalibrated", 0.0
-        
+
         prediction = self.model.predict([landmarks])[0]
 
         probs = self.model.predict_proba([landmarks])[0]
         confidence = max(probs)
-        
+
+        # Distance from nearest neighbors is used by the API to reject unknown gestures.
+        try:
+            k = min(3, len(getattr(self.model, "_fit_X", []))) or 1
+            distances, _ = self.model.kneighbors([landmarks], n_neighbors=k)
+            self.last_neighbor_distance = float(np.mean(distances[0]))
+        except Exception:
+            self.last_neighbor_distance = None
+
         return prediction, confidence
     
     

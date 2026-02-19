@@ -1,0 +1,25 @@
+{
+  "gestures": [
+    {
+      "id": "g_1",
+      "label": "my_new_gesture",
+      "action": "LOCK_SCREEN",
+      "emoji": "\ud83d\ude42",
+      "threshold": 0.82
+    },
+    {
+      "id": "g_2",
+      "label": "up",
+      "action": "VOLUME_UP",
+      "emoji": "\ud83d\ude42",
+      "threshold": 0.82
+    },
+    {
+      "id": "g_3",
+      "label": "down",
+      "action": "VOLUME_DOWN",
+      "emoji": "\ud83d\ude42",
+      "threshold": 0.82
+    }
+  ]
+}

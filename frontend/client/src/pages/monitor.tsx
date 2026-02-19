@@ -1,215 +1,165 @@
-import { useState } from "react";
-import { useStore, DesktopAction } from "@/lib/gestureStore";
+import { useEffect, useRef, useState } from "react";
+import { useStore, type DesktopAction } from "@/lib/gestureStore";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Camera, ChevronLeft, Save } from "lucide-react";
-import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 
-const ACTION_OPTIONS: DesktopAction[] = [
-  "VOLUME_UP",
-  "VOLUME_DOWN",
-  "MUTE",
-  "PLAY_PAUSE",
-  "NEXT_SLIDE",
-  "PREVIOUS_SLIDE",
-  "ZOOM_IN",
-  "ZOOM_OUT",
-  "LOCK_SCREEN",
-];
-
-const ACTION_LABEL: Record<DesktopAction, string> = {
-  VOLUME_UP: "Volume Up",
-  VOLUME_DOWN: "Volume Down",
-  MUTE: "Mute",
-  PLAY_PAUSE: "Play / Pause",
-  NEXT_SLIDE: "Next Slide",
-  PREVIOUS_SLIDE: "Previous Slide",
-  ZOOM_IN: "Zoom In",
-  ZOOM_OUT: "Zoom Out",
-  LOCK_SCREEN: "Lock Screen",
-  NONE: "None",
-};
-
-export default function Monitor() {
-  const [, setLocation] = useLocation();
-  const { image, status, progress, sendAction } = useStore();
+export default function LiveFeedPage() {
+  const store = useStore();
   const { toast } = useToast();
-  const [selectedAction, setSelectedAction] = useState<DesktopAction>("MUTE");
-  const [gestureLabel, setGestureLabel] = useState<string>("MY_MUTE_GESTURE");
-  const [defaultThreshold, setDefaultThreshold] = useState(0.85);
-  const [requiredStreak, setRequiredStreak] = useState(3);
+  const [selectedAction, setSelectedAction] = useState<DesktopAction | "">("");
+  const [label, setLabel] = useState("my_new_gesture");
+  const [emoji, setEmoji] = useState("🙂");
+  const [targetSamples, setTargetSamples] = useState(50);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const wasRecordingRef = useRef(false);
+
+  useEffect(() => {
+    void store.loadGestures();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedAction && store.supportedActions.length > 0) {
+      setSelectedAction(store.supportedActions[0]);
+    }
+  }, [store.supportedActions, selectedAction]);
+
+  useEffect(() => {
+    if (wasRecordingRef.current && !store.recordingActive && store.recordingMessage) {
+      toast({
+        title: "Recording complete",
+        description: store.recordingMessage,
+      });
+      void store.loadGestures();
+      void store.loadModelStatus();
+      setIsSubmitting(false);
+    }
+    wasRecordingRef.current = store.recordingActive;
+  }, [store.recordingActive, store.recordingMessage, toast]);
 
   const startRecording = async () => {
-    const label = gestureLabel.trim().toLowerCase();
-    if (!label) {
-      toast({ variant: "destructive", title: "Missing gesture label", description: "Enter a label before recording." });
-      return;
+    if (!selectedAction) return;
+    setIsSubmitting(true);
+    try {
+      const response = await store.sendAction("start_recording_gesture", {
+        action: selectedAction,
+        label,
+        emoji,
+        target_samples: targetSamples,
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        toast({
+          variant: "destructive",
+          title: "Training sample rejected",
+          description: payload.message ?? "Could not start recording.",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      toast({
+        title: "Recording started",
+        description: payload.message ?? "Keep your hand visible and vary orientation.",
+      });
+      wasRecordingRef.current = true;
+    } finally {
+      if (!store.recordingActive) {
+        setIsSubmitting(false);
+      }
     }
-
-    await sendAction("record", { label });
-    toast({
-      title: `Recording ${gestureLabel.toUpperCase()}`,
-      description: `Action target: ${ACTION_LABEL[selectedAction]}`,
-    });
   };
 
-  const finalizeTraining = async () => {
-    const label = gestureLabel.trim().toLowerCase();
-    if (!label) {
-      toast({ variant: "destructive", title: "Missing gesture label", description: "Enter a label before training." });
-      return;
-    }
-
-    const trainResp = await sendAction("train");
-    if (!trainResp.ok) {
-      toast({ variant: "destructive", title: "Training failed", description: "Could not rebuild model." });
-      return;
-    }
-
-    const bindResp = await sendAction("bind_action_gesture", {
-      action: selectedAction,
-      gesture: label,
-    });
-    if (!bindResp.ok) {
-      toast({ variant: "destructive", title: "Mapping update failed", description: "Training succeeded but action binding failed." });
-      return;
-    }
-
-    toast({
-      title: "Training complete",
-      description: `${gestureLabel.toUpperCase()} is now bound to ${ACTION_LABEL[selectedAction]} (old mapping replaced).`,
-    });
-  };
-
-  const applyPredictionTuning = async () => {
-    await sendAction("update_prediction_config", {
-      default_threshold: defaultThreshold,
-      required_consecutive_frames: requiredStreak,
-    });
-    toast({ title: "Prediction tuning saved", description: "Threshold and smoothing updated." });
+  const retrain = async () => {
+    await store.sendAction("train", {});
+    await store.loadModelStatus();
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-slate-900/50 backdrop-blur-md">
-        <Button variant="ghost" onClick={() => setLocation("/mapping")} className="text-slate-400">
-          <ChevronLeft className="mr-2 h-4 w-4" /> Back to Mapping
-        </Button>
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse" />
-          <span className="text-xs font-bold uppercase tracking-tighter text-emerald-500">Neural Link Active</span>
-        </div>
-      </div>
-
-      <div className="flex-1 relative flex items-center justify-center p-6">
-        <div className="relative w-full max-w-4xl aspect-video bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-          {image ? (
-            <img src={`data:image/jpeg;base64,${image}`} className="w-full h-full object-cover" />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-600">
-              <Camera className="h-12 w-12 mb-4 animate-pulse" />
-              <p>Establishing secure handshake with Python engine...</p>
-            </div>
-          )}
-
-          {status === "RECORDING" && (
-            <div className="absolute inset-0 bg-blue-600/20 backdrop-blur-sm flex items-center justify-center">
-              <div className="text-center">
-                <h2 className="text-6xl font-black text-white mb-2 italic">RECORDING</h2>
-                <div className="text-2xl font-mono text-blue-300">Samples: {progress} / 50</div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="p-8 border-t border-white/10 bg-slate-950">
-        <div className="max-w-6xl mx-auto space-y-6">
-          <h3 className="text-xl font-bold">Action-First Training</h3>
-          <p className="text-sm text-slate-400">
-            Pick an action, record a custom gesture, then finalize. Each action can have only one gesture.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border border-white/10 bg-white/5">
-            <label className="text-xs text-slate-300">
-              Target Action
-              <Select value={selectedAction} onValueChange={(v) => setSelectedAction(v as DesktopAction)}>
-                <SelectTrigger className="mt-1 bg-slate-800 border-slate-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ACTION_OPTIONS.map((action) => (
-                    <SelectItem key={action} value={action}>
-                      {ACTION_LABEL[action]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
-            <label className="text-xs text-slate-300">
-              Gesture Label
-              <Input
-                className="mt-1 bg-slate-800 border-slate-700 uppercase"
-                value={gestureLabel}
-                onChange={(e) => setGestureLabel(e.target.value.toUpperCase())}
-                placeholder="LEFT_SPLIT"
-              />
-            </label>
-            <div className="flex items-end">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={startRecording}>
-                Start Recording
-              </Button>
-            </div>
+    <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+      <Card className="border-cyan-400/20 bg-slate-950/55 shadow-[0_0_36px_rgba(14,116,144,0.25)]">
+        <CardHeader>
+          <CardTitle className="text-cyan-100">Live Camera Feed</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="aspect-video overflow-hidden rounded-xl border border-cyan-400/25 bg-slate-950/70">
+            {store.image ? (
+              <img src={`data:image/jpeg;base64,${store.image}`} className="h-full w-full object-cover" />
+            ) : (
+              <div className="grid h-full place-items-center text-sm text-slate-400">Waiting for JARVIS stream...</div>
+            )}
           </div>
+          <div className="mt-4 rounded-lg border border-cyan-400/20 bg-slate-900/40 p-3 text-sm text-slate-300">
+            Hand detected: <span className="font-semibold text-cyan-200">{store.handDetected ? "Yes" : "No"}</span>
+            <br />
+            Recording progress:{" "}
+            <span className="font-semibold text-cyan-200">
+              {store.recordingCount}/{store.recordingTarget || targetSamples}
+            </span>
+            {store.recordingMessage ? (
+              <>
+                <br />
+                <span className="text-xs text-slate-400">{store.recordingMessage}</span>
+              </>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button variant="outline" className="border-emerald-500/50 text-emerald-300" onClick={finalizeTraining}>
-              <Save className="mr-2 h-4 w-4" /> Finalize Training
-            </Button>
+      <Card className="border-cyan-400/20 bg-slate-950/55 shadow-[0_0_36px_rgba(8,47,73,0.3)]">
+        <CardHeader>
+          <CardTitle className="text-cyan-100">Train New Gesture</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="block text-sm text-slate-300">Target Action</label>
+          <Select value={selectedAction} onValueChange={(v) => setSelectedAction(v as DesktopAction)}>
+            <SelectTrigger className="bg-slate-900/50">
+              <SelectValue placeholder="Select action" />
+            </SelectTrigger>
+            <SelectContent>
+              {store.supportedActions.map((action) => (
+                <SelectItem key={action} value={action}>
+                  {action}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <label className="block text-sm text-slate-300">Gesture Label</label>
+          <Input value={label} onChange={(e) => setLabel(e.target.value.toLowerCase())} className="bg-slate-900/50" />
+
+          <label className="block text-sm text-slate-300">Emoji</label>
+          <Input value={emoji} onChange={(e) => setEmoji(e.target.value)} className="w-24 bg-slate-900/50 text-center" />
+
+          <label className="block text-sm text-slate-300">Target Samples</label>
+          <Input
+            type="number"
+            min={20}
+            max={120}
+            value={targetSamples}
+            onChange={(e) => setTargetSamples(Math.max(20, Math.min(120, Number(e.target.value || 50))))}
+            className="w-28 bg-slate-900/50"
+          />
+
+          <div className="flex gap-2">
             <Button
-              variant="outline"
-              className="border-cyan-500/50 text-cyan-300"
-              onClick={() => setLocation("/mapping")}
+              className="bg-cyan-600 hover:bg-cyan-500"
+              onClick={() => void startRecording()}
+              disabled={isSubmitting || store.recordingActive}
             >
-              Go to Action Mapping
+              {store.recordingActive ? `Recording ${store.recordingCount}/${store.recordingTarget}` : "Record Gesture Samples"}
+            </Button>
+            <Button variant="outline" className="border-cyan-400/40 bg-slate-900/40" onClick={() => void retrain()}>
+              Retrain All Gestures
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-xl border border-white/10 bg-white/5">
-            <label className="text-xs text-slate-300">
-              Default Threshold
-              <input
-                className="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
-                type="number"
-                min={0.55}
-                max={0.98}
-                step={0.01}
-                value={defaultThreshold}
-                onChange={(e) => setDefaultThreshold(Number(e.target.value))}
-              />
-            </label>
-            <label className="text-xs text-slate-300">
-              Required Consecutive Frames
-              <input
-                className="mt-1 w-full rounded-md bg-slate-800 border border-slate-700 px-3 py-2 text-sm"
-                type="number"
-                min={1}
-                max={10}
-                step={1}
-                value={requiredStreak}
-                onChange={(e) => setRequiredStreak(Number(e.target.value))}
-              />
-            </label>
-            <div className="flex items-end">
-              <Button className="w-full bg-cyan-600 hover:bg-cyan-700" onClick={applyPredictionTuning}>
-                Apply Tuning
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+          <p className="text-xs text-slate-400">
+            JARVIS records real-time frame samples (no one-shot augmentation) and retrains automatically after sample collection completes.
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

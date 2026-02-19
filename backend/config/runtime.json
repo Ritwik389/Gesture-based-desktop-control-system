@@ -1,0 +1,4 @@
+{
+  "default_threshold": 0.82,
+  "required_consecutive_frames": 2
+}

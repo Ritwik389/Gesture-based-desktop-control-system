@@ -5,6 +5,10 @@ import controller
 
 tracker = HandTracker()
 model = GestureModel()
+TEST_MAPPINGS = {
+    "rock": "MUTE",
+    "paper": "PLAY_PAUSE",
+}
 
 
 X_data = []  
@@ -65,7 +69,7 @@ while True:
                         cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
             
             if confidence > 0.8:
-                controller.execute_action(prediction)
+                controller.execute_action(str(prediction), TEST_MAPPINGS)
 
     cv2.imshow("Gesture Test Logic", frame)
     
